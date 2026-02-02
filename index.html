@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tietovisa</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    button:focus { outline: 2px solid #60a5fa; outline-offset: 2px; }
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const QUESTIONS_PER_GAME = 10;
+    const SESSION_KEY = 'eurooppa-trivia-session';
+    const CSV_FILENAME = 'questions.csv';
+    const CONFIG_FILENAME = 'config.csv';
+
+    // Default questions (fallback if questions.csv not loaded)
+    const defaultQuestionsCSV = `question;optionA;optionB;correctAnswer;infoA;infoB
+Kumpi joki on pidempi?;Tonava;Reinjoki;A;Tonava on Euroopan toiseksi pisin joki (2 850 km) ja virtaa 10 maan läpi.;Reinjoki on 1 233 km pitkä ja virtaa Alpeista Pohjanmereen.
+Kumpi vuoristo on korkeampi?;Pyreneet;Alpit;B;Pyreneiden korkein huippu Aneto on 3 404 metriä.;Alppien korkein huippu Mont Blanc on 4 809 metriä.
+Kumpi järvi on suurempi pinta-alaltaan?;Laatokka;Vänern;A;Laatokka on Euroopan suurin järvi (17 700 km²).;Vänern on Länsi-Euroopan suurin järvi (5 655 km²).
+Kumpi meri on syvempi?;Välimeri;Itämeri;A;Välimeren syvin kohta on 5 267 metriä.;Itämeren keskisyvyys on vain 55 metriä.
+Kumpi vuori on korkeampi?;Matterhorn;Mont Blanc;B;Matterhorn on 4 478 metriä korkea ja tunnettu pyramidimaisesta muodostaan.;Mont Blanc on Alppien ja Euroopan korkein huippu (4 809 m).
+Kumpi joki on pidempi?;Volga;Tonava;A;Volga on Euroopan pisin joki (3 531 km) ja laskee Kaspianmereen.;Tonava on Euroopan toiseksi pisin joki (2 850 km).
+Kumpi saari on suurempi?;Iso-Britannia;Islanti;A;Iso-Britannia on Euroopan suurin saari (229 848 km²).;Islanti on Euroopan toiseksi suurin saari (103 000 km²).
+Kumpi niemimaa on suurempi?;Skandinavian niemimaa;Iberian niemimaa;A;Skandinavian niemimaa on noin 750 000 km².;Iberian niemimaa on noin 582 000 km².
+Kumpi järvi on syvempi?;Saimaa;Hornindalsvatnet;B;Saimaan syvin kohta on 82 metriä.;Hornindalsvatnet Norjassa on Euroopan syvin järvi (514 m).
+Kumpi vuoristo sijaitsee pohjoisempana?;Alpit;Skandit;B;Skandit ulottuvat Norjassa napapiirin pohjoispuolelle.;Alpit sijaitsevat Keski-Euroopassa 46. leveysasteen tienoilla.
+Kumpi joki virtaa Suomen läpi?;Tornionjoki;Kemijoki;B;Tornionjoki muodostaa rajan Suomen ja Ruotsin välille.;Kemijoki on kokonaan Suomen puolella ja Suomen pisin joki (550 km).
+Kumpi maa rajoittuu Mustallemerelle?;Romania;Puola;A;Romania on yksi kuudesta Mustallemerelle rajoittuvasta maasta.;Puola rajoittuu Itämereen, ei Mustallemerelle.
+Kummassa maassa asuu enemmän ihmisiä?;Ranska;Saksa;B;Ranskassa asuu yli 66 miljoonaa ihmistä.;Saksassa asuu yli 84 miljoonaa ihmistä.
+Kumpi salmi yhdistää kaksi merta?;Gibraltarinsalmi;Englannin kanaali;A;Gibraltarinsalmi yhdistää Välimeren ja Atlantin valtameren.;Englannin kanaali on meriväylä Britannian ja Ranskan välillä.
+Kummassa maassa asuu enemmän ihmisiä?;Portugali;Hollanti;B;Portugalissa asuu yli 10 miljoonaa ihmistä.;Hollannissa asuu yli 18 miljoonaa ihmistä.
+Kummassa maassa asuu enemmän ihmisiä?;Espanja;Italia;B;Espanjassa asuu yli 49 miljoonaa ihmistä.;Italiassa asuu yli 59 miljoonaa ihmistä.
+Kumpi vuoristo on vanhempi?;Skandit;Alpit;A;Skandit muodostuivat noin 400 miljoonaa vuotta sitten.;Alpit ovat nuorempia, noin 65 miljoonaa vuotta vanhoja.
+Kumpi maa on maantieteellisesti pohjoisin?;Norja;Islanti;A;Norjan pohjoisin piste on 71° pohjoista leveyttä.;Islannin pohjoisin piste on noin 66° pohjoista leveyttä.
+Kumpi joki virtaa Pariisissa?;Loire;Seine;B;Loire on Ranskan pisin joki (1 006 km) mutta ei virtaa Pariisissa.;Seine virtaa Pariisin läpi ja on 777 km pitkä.
+Kumpi on Belgian pääkaupunki?;Bryssel;Varsova;A;Bryssel on Belgian pääkaupunki.;Varsova on Puolan pääkaupunki.
+Kumpi on Norjan pääkaupunki?;Bergen;Oslo;B;Oslo on Norjan pääkaupunki.;Bergen on Norjan neljänneksi suurin kaupunki.
+Kumpi valtio sijaitsee vuoristossa?;Andorra;Monaco;A;Andorra sijaitsee Pyreneiden vuoristossa.;Monaco sijaitsee Välimeren rannalla tasaisella alueella.
+Kumpi meri on pienempi pinta-alaltaan?;Adrianmeri;Itämeri;B;Adrianmeri on noin 138 000 km² suuri pinta-alaltaan.;Itämeri on 377 000 km² suuri pinta-alaltaan.
+Kumpi joki laskee Mustallemerelle?;Tonava;Volga;A;Tonava laskee Mustallemerelle Romanian kohdalla.;Volga laskee Kaspianmereen.
+Kumpi vuori on tulivuori?;Etna;Mont Blanc;A;Etna Sisiliassa on Euroopan korkein aktiivinen tulivuori (3 357 m).;Mont Blanc ei ole tulivuori vaan graniitista muodostunut huippu.
+Kumpi saari on lähempänä Afrikkaa?;Sisilia;Sardinia;A;Sisilia on vain 140 km päässä Tunisiasta.;Sardinia on noin 200 km päässä Afrikan rannikosta.
+Kumpi joki on pidempi?;Kemijoki;Loire;B;Kemijoki on Suomen pisin joki (noin 550 km).;Loire on Ranskan pisin joki (1 006 km) ja Kemijokea suurempi.
+Kumpi niemimaa on eteläisin?;Peloponnesoksen niemimaa;Iberian niemimaa;A;Peloponnesoksen eteläkärki ulottuu 36° pohjoiseen leveyteen.;Iberian niemimaan eteläkärki on 36° pohjoista leveyttä.
+Kumpi vuoristo on pidempi?;Alpit;Ural;B;Alppien kaari on noin 1 200 km pitkä.;Uralin vuoristo on noin 2 500 km pitkä.
+Kumpi järvi on suolaisempi?;Kaspianmeri;Laatokka;A;Kaspianmeri on suolainen järvi (suolapitoisuus noin 1,2%).;Laatokka on makeavetinen järvi.
+Kumpi joki alkaa Alpeista?;Veikseli;Reinjoki;B;Veikseli saa alkunsa Karpaateilta Puolassa.;Reinjoki saa alkunsa Sveitsin Alpeista.
+Kumpi saari on tiheämmin asuttu?;Malta;Islanti;A;Maltalla asuu noin 1 500 ihmistä per km².;Islannissa asuu vain noin 3,5 ihmistä per km².
+Kumpi meri on Suomen rannikolla?;Itämeri;Pohjanmeri;A;Suomen rannikko on kokonaan Itämeren äärellä.;Pohjanmeri on Norjan, Tanskan ja Britannian välissä.
+Kumpi vuoristo muodostaa rajan Euroopan ja Aasian välille?;Ural;Kaukasus;A;Uralin vuoristo on perinteinen Euroopan ja Aasian raja.;Kaukasus on myös rajalla, mutta Ural on tunnetumpi rajana.
+Kumpi joki virtaa Lontoossa?;Thames;Severn;A;Thames virtaa Lontoon läpi ja on 346 km pitkä.;Severn on Britannian pisin joki (354 km) mutta ei virtaa Lontoossa.
+Kumpi järvi sijaitsee Alpeilla?;Balatonjärvi;Comojärvi;B;Balatonjärvi on Unkarissa tasangolla.;Comojärvi on Pohjois-Italiassa Alppien kupeessa.
+Kumpi vuori on korkeampi?;Mont Blanc;Elbrus;B;Mont Blanc on 4 809 m korkea.;Elbrus Kaukasuksella on 5 642 m korkea.
+Kumpi joki on pidempi?;Dnepr;Reinjoki;A;Dnepr on 2 201 km pitkä ja virtaa Ukrainan läpi.;Reinjoki on 1 233 km pitkä.
+Kumpi niemimaa sijaitsee Pohjois-Euroopassa?;Jyllannin niemimaa;Apenniinien niemimaa;A;Jyllannin niemimaa muodostaa Tanskan mannerosan.;Apenniinien niemimaa on Italia.
+Kumpi salmi erottaa Euroopan Aasiasta?;Messinin salmi;Bosporinsalmi;B;Messinin salmi erottaa Italian mantereesta Sisilian.;Bosporinsalmi Turkissa erottaa Euroopan ja Aasian.
+Kumpi joki virtaa Wienissä?;Tonava;Reinjoki;A;Tonava virtaa Wienin läpi matkallaan Mustallemerelle.;Reinjoki virtaa Saksan ja Alankomaiden läpi.
+Kumpi järvi on Sveitsin ja Ranskan rajalla?;Genevenjärvi;Zurichinjärvi;A;Genevenjärvi on Sveitsin ja Ranskan rajalla.;Zurichinjärvi on kokonaan Sveitsissä.
+Kumpi vuoristo on matalampi?;Alpit;Sudeettien vuoristo;B;Alppien korkein huippu on 4 809 metriä.;Sudeettien korkein huippu on 1 603 metriä.
+Kumpi joki laskee Itämereen?;Reinjoki;Veikseli;B;Reinjoki laskee Pohjanmereen.;Veikseli virtaa Puolan läpi ja laskee Itämereen.
+Kumpi saari on vulkaaninen?;Islanti;Iso-Britannia;A;Islanti sijaitsee Atlantin keskiselänteellä ja on vulkaanisesti aktiivinen.;Iso-Britannia ei ole vulkaanisesti aktiivinen.
+Kumpi meri on syvempi?;Itämeri;Mustameri;B;Itämeren syvin kohta on 459 metriä.;Mustanmeren syvin kohta on 2 212 metriä.
+Kumpi on Euroopan pienin maa väkiluvultaan?;Vatikaani;Luxemburg;A;Vatikaanissa asuu alle 1000 ihmistä.;Luxemburgin väkiluku on yli 600 000.
+Kumpi järvi on suurempi?;Laatokka;Saimaa;A;Laatokka on Euroopan suurin järvi (18 135 km²).;Saimaa on 4 400 km² ja Suomen suurin järvi.
+Kumpi vuori on aktiivinen tulivuori?;Olympos;Vesuvius;B;Olympos-vuori Kreikassa ei ole tulivuori.;Vesuvius on aktiivinen tulivuori Napolin lähellä.
+Kumpi joki virtaa Budapestissa?;Tonava;Elbe;A;Tonava jakaa Budapestin Budaan ja Pestiin.;Elbe virtaa Saksan läpi.
+Kumpi salmi on leveämpi?;Englannin kanaali;Gibraltarinsalmi;A;Englannin kanaalin kapein kohta on 34 km.;Gibraltarinsalmen kapein kohta on vain 14 km.
+Kumpi maa on pinta-alaltaan suurempi?;Itävalta;Suomi;B;Itävalta on Euroopan maista 19. suurin.;Suomi on Euroopan maista kahdeksanneksi suurin.
+Kumpi vuoristo on vanhempi?;Ural;Karpaatit;A;Ural muodostui noin 300 miljoonaa vuotta sitten.;Karpaatit ovat nuorempia, noin 30 miljoonaa vuotta vanhoja.
+Kummassa maassa on enemmän järviä?;Italia;Suomi;B;Suomessa on eniten yli 0,5 hehtaarin kokoisia järviä Euroopassa (yli 160 000).;Italiassa on monta kuuluisaa järveä, mutta lukumäärältään niitä on vain muutama tuhat.
+Kumpi saari on idempänä?;Kypros;Kreeta;A;Kypros sijaitsee Välimeren itäosassa.;Kreeta on Kyproksen länsipuolella.
+Kumpi meri on lämpimämpi kesällä?;Adrianmeri;Itämeri;A;Adrianmeren lämpötila nousee kesällä yli 25°C.;Itämeri lämpenee kesällä noin 17-20°C.
+Kumpi joki virtaa kolmen pääkaupungin läpi?;Reinjoki;Tonava;B;Reinjoki ei virtaa yhdenkään pääkaupungin läpi.;Tonava virtaa Wienin, Bratislavan ja Budapestin läpi.
+Kumpi vuoristo muodostaa Espanjan ja Ranskan rajan?;Pyreneet;Alpit;A;Pyreneet ulottuvat Atlantilta Välimerelle Espanjan ja Ranskan rajalla.;Alpit ovat Ranskan ja Italian sekä Sveitsin rajalla.
+Kumpi järvi on kapeampi?;Comojärvi;Gardasjärvi;A;Comojärvi on vain 4,5 km leveimmillään.;Gardasjärvi on jopa 17 km leveä.
+Mikä on Italian pääkaupunki;Milano;Rooma;B;Milano on Italian toiseksi suurin kaupunki.;Rooma on Italian pääkaupunki ja myös Italian suurin.
+Kumpi saari on Kreikalle kuuluva?;Kreeta;Korsika;A;Kreeta on Kreikan suurin saari.;Korsika kuuluu Ranskalle.
+Kumpi niemimaista on läntisempi?;Iberian niemimaa;Balkanin niemimaa;A;Iberian niemimaa on Euroopan lounaiskolkka.;Balkanin niemimaa on Kaakkois-Euroopassa.
+Kumpi vuori on Kreikan korkein?;Olympos;Parnassos;A;Olympos on Kreikan korkein vuori (2 917 m).;Parnassos on 2 457 m korkea.
+Mikä on Euroopan eteläisin maa?;Portugali;Kreikka;B;Portugali on Euroopan läntisin maa.;Kreikan eteläisimmät saaret, kuten Gavdos, ovat Euroopan eteläisin osa.
+Kumpi maa on Euroopassa;Afganistan;Puola;B;Afganistan kuuluu etelä-Aasiaan.;Puola on osa Eurooppaa.
+Kumpi meri on suolaisempi?;Välimeri;Itämeri;A;Välimeren suolapitoisuus on noin 38 promillea.;Itämeren suolapitoisuus on vain 7-8 promillea.
+Kumpi vuoristo on korkeampi?;Kaukasus;Karpaatit;A;Kaukasuksen korkein huippu Elbrus on 5 642 m.;Karpaattien korkein huippu on 2 655 m.
+Kumpi on Ranskan naapurimaa?;Puola;Espanja;B;Puolan ja Ranskan välissä on Saksa.;Espanjalla ja Ranskalla on noin 450 km yhteistä rajaa.
+Kumpi saari on pohjoisempi?;Huippuvuoret;Islanti;A;Huippuvuoret (Svalbard) ulottuvat lähes 81° pohjoiseen.;Islanti ulottuu noin 66° pohjoiseen.
+Kumpi järvi on Italiassa?;Balatonjärvi;Maggiorejärvi;B;Balatonjärvi on Unkarissa.;Maggiorejärvi on Pohjois-Italiassa Alpeilla.
+Kumpi on Kreikan pääkaupunki;Ateena;Zagreb;A;Ateena on Kreikan suurin kaupunki ja myös maan pääkaupunki.;Zagreb on Kroatian pääkaupunki.
+Kumpi vuori sijaitsee Italiassa?;Etna;Teide;A;Etna on Sisiliassa Italiassa.;Teide on Kanariansaarilla Espanjassa.
+Kumpi meri on Euroopan ja Afrikan välissä?;Välimeri;Mustameri;A;Välimeri erottaa Euroopan ja Afrikan.;Mustameri on Euroopan ja Aasian välissä.
+Kummalla maalla on enemmän rajanaapureita?;Sveitsi;Saksa;B;Sveitsillä on viisi rajanaapuria.;Saksalla on yhdeksän rajanaapuria.
+Kumpi joki alkaa Sveitsin Alpeista?;Rhône;Elbe;A;Rhône saa alkunsa Sveitsin Alpeista ja laskee Välimerelle.;Elbe saa alkunsa Tšekistä.
+Kumpi on Sveitsin Pääkaupunki;Bern;Berliini;A;Bern on Sveitsin pääkaupunki.;Berliini on Saksan pääkaupunki.
+Kumpi niemimaa on pienempi?;Iberian niemimaa;Jyllannin niemimaa;B;Iberian niemimaa on noin 582 000 km².;Jyllannin niemimaa on noin 29 775 km².
+Kumpi joki virtaa Berliinissä?;Spree;Elbe;A;Spree virtaa Berliinin läpi ja on 400 km pitkä.;Elbe virtaa Hampurin läpi.
+Kumpi on Viron Pääkaupunki;Tallinna;Riika;A;Tallinna on Viron pääkaupunki.;Riika on Latvian pääkaupunki.
+Kumpi on Tanskan Pääkaupunki;Oslo;Kööpenhamina;B;Oslo on Norjan pääkaupunki.;Kööpenhamina on Tanskan pääkaupunki.
+Kumpi vuoristo on Tšekissä?;Sudeettien vuoristo;Tatrat;A;Sudeettien vuoristo on Tšekin ja Puolan rajalla.;Tatrat ovat Puolan ja Slovakian rajalla.
+Kumpi joki on Britannian pisin?;Thames;Severn;B;Thames on 346 km pitkä.;Severn on 354 km pitkä.
+Kumpi meri yhdistää Itämeren Pohjanmereen?;Kattegat;Bosporinsalmi;A;Kattegat ja Skagerrak yhdistävät Itämeren Pohjanmereen.;Bosporinsalmi yhdistää Mustanmeren Marmaranmereen.
+Kumpi on suurempi kaupunki pinta-alaltaan?;Pariisi;Rovaniemi;B;Pariisi on väkiluvultaan Euroopan Union suurin metropolialue.;Rovaniemi on pinta-alaltaan sekä Suomen että Euroopan suurin kaupunki.
+Kummassa maassa on enemmän asukkaita?;Suomi;Ruotsi;B;Suomessa asuu noin 5,6 miljoonaa ihmistä.;Ruotsissa asuu noin 10,7 miljoonaa ihmistä.
+Kummassa maassa on enemmän asukkaita?;Norja;Tanska;B;Norjassa asuu noin 5,6 miljoonaa ihmistä.;Tanskassa asuu noin 6 miljoonaa ihmistä.
+Kummassa maassa on enemmän asukkaita?;Iso-Britannia;Tsekki;A;Iso-Britanniassa asuu noin 69 miljoonaa ihmistä.;Tsekissä asuu noin 10,6 miljoonaa ihmistä.
+Kumpi järvi on Ruotsissa?;Vättern;Onega;A;Vättern on Ruotsin toiseksi suurin järvi.;Onega on Venäjällä.
+Kumpi vuoristo on Italian selkäranka?;Alpit;Apenniinit;B;Alpit ovat Pohjois-Italian rajalla.;Apenniinit ulottuvat läpi Italian niemimaan.
+Kumpi joki virtaa Kölnissä?;Reinjoki;Elbe;A;Reinjoki virtaa Kölnin läpi Saksassa.;Elbe virtaa Hampurin ja Dresdenin läpi.
+Kumpi meri on matalampi?;Asovanmeri;Adrianmeri;A;Asovanmeren keskisyvyys on vain 7 metriä.;Adrianmeren keskisyvyys on 252 metriä.
+Kumpi järvi on Suomessa?;Onega;Päijänne;B;Onega on järvi Venäjällä.;Päijänne on Suomen toiseksi suurin järvi.
+Kumpi vuoristo on Romanian pääasiallinen vuoristo?;Karpaatit;Alpit;A;Karpaatit kaartuvat Romanian läpi.;Alpit eivät ulotu Romaniaan.
+Kumpi joki on Venäjän pisin?;Ural-joki;Volga;B;Ural-joki on 2 428 km pitkä.;Volga on 3 531 km pitkä ja Euroopan pisin joki.
+Kumpi saari on Tanskalle kuuluva?;Grönlanti;Islanti;A;Grönlanti on Tanskan itsehallintoalue.;Islanti on itsenäinen valtio.
+Kumpi järvi on Itävallan rajalla?;Comojärvi;Bodenjärvi;B;Comojärvi on kokonaan Italiassa.;Bodenjärvi on Itävallan, Saksan ja Sveitsin rajalla.
+Kumpi maa on pinta-alaltaan suurempi?;Ranska;Saksa;A;Ranska on pinta-alaltaan 643 801 km².;Saksa on pinta-alaltaan 357 022 km².
+Kumpi maa on pinta-alaltaan suurempi?;Ranska;Puola;A;Ranska on pinta-alaltaan Euroopan kolmanneksi suurin.;Puola on pinta-alaltaan Euroopan yhdeksänneksi suurin.
+Kumpi vuori on Espanjan korkein?;Teide;Mulhacén;A;Teide Teneriffalla on 3 718 m korkea.;Mulhacén on Espanjan mantereella korkein (3 479 m).`;
+
+    // Default UI texts (fallback if config.csv not loaded)
+    const defaultTexts = {
+      title: 'Euroopan Maantiede',
+      subtitle: 'Tietovisa',
+      welcomeTitle: 'Tervetuloa tietovisaan!',
+      welcomeText: 'Testatkaa tietonne Euroopan joista, vuoristoista, järvistä ja meristä.',
+      startButton: 'Aloita peli',
+      filePickerTitle: 'Valitse kysymystiedosto',
+      filePickerText: 'Valitse CSV-tiedosto, jossa on tietovisan kysymykset.',
+      filePickerButton: 'Valitse CSV-tiedosto',
+      backButton: 'Takaisin',
+      nextButton: 'Seuraava kysymys',
+      showResultsButton: 'Näytä tulokset',
+      correctText: 'Oikein!',
+      wrongText: 'Väärin!',
+      gameOverTitle: 'Peli päättyi!',
+      playAgainButton: 'Pelaa uudelleen',
+      backToStartButton: 'Alkuun',
+      loadDifferentFile: 'Lataa eri kysymystiedosto',
+      questionLabel: 'Kysymys',
+      correctLabel: 'oikein'
+    };
+
+    function shuffleArray(array) {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
+    function loadSession() {
+      try {
+        const saved = sessionStorage.getItem(SESSION_KEY);
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return null;
+    }
+
+    function saveSession(session) {
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      } catch (e) {}
+    }
+
+    function clearSession() {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+
+    function getEncouragingMessage(correct, total) {
+      const percentage = (correct / total) * 100;
+      if (percentage === 100) return { emoji: '🏆', message: 'Täydellistä! Olette maantieteen mestareita!' };
+      if (percentage >= 80) return { emoji: '🌟', message: 'Erinomaista työtä! Tunnette aiheen todella hyvin!' };
+      if (percentage >= 60) return { emoji: '👏', message: 'Hyvää työtä! Opitte paljon uutta tänään!' };
+      if (percentage >= 40) return { emoji: '💪', message: 'Hienoa yrittämistä! Aiheessa on paljon opittavaa!' };
+      return { emoji: '🌍', message: 'Harjoitelkaa lisää!' };
+    }
+
+    // Parse CSV with auto-detect delimiter (comma or semicolon)
+    function parseCSV(text) {
+      // Detect delimiter by checking first line
+      const firstLine = text.split('\n')[0];
+      const delimiter = firstLine.includes(';') ? ';' : ',';
+      return Papa.parse(text, { header: true, skipEmptyLines: true, delimiter });
+    }
+
+    function TriviaGame() {
+      const [allQuestions, setAllQuestions] = useState([]);
+      const [texts, setTexts] = useState(defaultTexts);
+      const [gameState, setGameState] = useState('loading');
+      const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+      const [selectedQuestions, setSelectedQuestions] = useState([]);
+      const [correctAnswers, setCorrectAnswers] = useState(0);
+      const [selectedAnswer, setSelectedAnswer] = useState(null);
+      const [isCorrect, setIsCorrect] = useState(null);
+      const [usedQuestionIndices, setUsedQuestionIndices] = useState([]);
+      const [questionsLoaded, setQuestionsLoaded] = useState(false);
+      const fileInputRef = useRef(null);
+
+      // Load config texts
+      useEffect(() => {
+        fetch(CONFIG_FILENAME)
+          .then(response => {
+            if (!response.ok) throw new Error('Config not found');
+            return response.text();
+          })
+          .then(csvText => {
+            const results = parseCSV(csvText);
+            if (results.data && results.data.length > 0) {
+              const configTexts = { ...defaultTexts };
+              results.data.forEach(row => {
+                if (row.key && row.value) {
+                  configTexts[row.key] = row.value;
+                }
+              });
+              setTexts(configTexts);
+            }
+          })
+          .catch(() => {
+            console.log('Using default texts');
+          });
+      }, []);
+
+      // Load questions (try external file first, then use embedded default)
+      const loadDefaultQuestions = () => {
+        const results = parseCSV(defaultQuestionsCSV);
+        if (results.data && results.data.length > 0) {
+          setAllQuestions(results.data);
+          setQuestionsLoaded(true);
+        }
+      };
+
+      useEffect(() => {
+        fetch(CSV_FILENAME)
+          .then(response => {
+            if (!response.ok) throw new Error('Questions not found');
+            return response.text();
+          })
+          .then(csvText => {
+            const results = parseCSV(csvText);
+            if (results.data && results.data.length > 0) {
+              setAllQuestions(results.data);
+              setQuestionsLoaded(true);
+            } else {
+              // Use default questions if external file is empty
+              loadDefaultQuestions();
+            }
+
+            // Check for existing session
+            const savedSession = loadSession();
+            if (savedSession && savedSession.selectedQuestions && savedSession.selectedQuestions.length > 0) {
+              setSelectedQuestions(savedSession.selectedQuestions);
+              setCurrentQuestionIndex(savedSession.currentQuestionIndex || 0);
+              setCorrectAnswers(savedSession.correctAnswers || 0);
+              setUsedQuestionIndices(savedSession.usedQuestionIndices || []);
+
+              if (savedSession.currentQuestionIndex >= QUESTIONS_PER_GAME) {
+                setGameState('finished');
+              } else if (savedSession.isAnswered) {
+                setSelectedAnswer(savedSession.selectedAnswer);
+                setIsCorrect(savedSession.isCorrect);
+                setGameState('answered');
+              } else {
+                setGameState('playing');
+              }
+            } else {
+              setGameState('start');
+            }
+          })
+          .catch(() => {
+            // Use default embedded questions when fetch fails
+            loadDefaultQuestions();
+            setGameState('start');
+          });
+      }, []);
+
+      // Load questions from selected file
+      const loadQuestionsFromFile = (file) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            // Auto-detect delimiter wasn't used by Papa.parse for File, so try again if needed
+            if (results.data && results.data.length > 0) {
+              // Check if data looks valid (has expected columns)
+              const firstRow = results.data[0];
+              if (firstRow.question || firstRow.optionA) {
+                setAllQuestions(results.data);
+                setQuestionsLoaded(true);
+                setGameState('start');
+              } else {
+                // Try with semicolon delimiter
+                Papa.parse(file, {
+                  header: true,
+                  skipEmptyLines: true,
+                  delimiter: ';',
+                  complete: (results2) => {
+                    if (results2.data && results2.data.length > 0) {
+                      setAllQuestions(results2.data);
+                      setQuestionsLoaded(true);
+                      setGameState('start');
+                    }
+                  }
+                });
+              }
+            }
+          }
+        });
+      };
+
+      const handleFileSelect = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          loadQuestionsFromFile(file);
+        }
+      };
+
+      useEffect(() => {
+        if (gameState !== 'loading' && gameState !== 'start' && gameState !== 'needFile') {
+          saveSession({
+            selectedQuestions,
+            currentQuestionIndex,
+            correctAnswers,
+            usedQuestionIndices,
+            selectedAnswer,
+            isCorrect,
+            isAnswered: gameState === 'answered'
+          });
+        }
+      }, [gameState, selectedQuestions, currentQuestionIndex, correctAnswers, usedQuestionIndices, selectedAnswer, isCorrect]);
+
+      const handleStartGame = () => {
+        if (!questionsLoaded) {
+          setGameState('needFile');
+        } else {
+          startNewGame();
+        }
+      };
+
+      const startNewGame = () => {
+        let availableIndices = allQuestions.map((_, i) => i).filter(i => !usedQuestionIndices.includes(i));
+        if (availableIndices.length < QUESTIONS_PER_GAME) {
+          availableIndices = allQuestions.map((_, i) => i);
+          setUsedQuestionIndices([]);
+        }
+        const shuffled = shuffleArray(availableIndices);
+        const pickedIndices = shuffled.slice(0, QUESTIONS_PER_GAME);
+        const picked = pickedIndices.map(i => allQuestions[i]);
+
+        setSelectedQuestions(picked);
+        setUsedQuestionIndices(prev => [...prev, ...pickedIndices]);
+        setCurrentQuestionIndex(0);
+        setCorrectAnswers(0);
+        setSelectedAnswer(null);
+        setIsCorrect(null);
+        setGameState('playing');
+      };
+
+      const handleAnswer = (answer) => {
+        const currentQuestion = selectedQuestions[currentQuestionIndex];
+        const correct = answer === currentQuestion.correctAnswer;
+        setSelectedAnswer(answer);
+        setIsCorrect(correct);
+        if (correct) setCorrectAnswers(prev => prev + 1);
+        setGameState('answered');
+      };
+
+      const handleNext = () => {
+        const nextIndex = currentQuestionIndex + 1;
+        if (nextIndex >= QUESTIONS_PER_GAME) {
+          setGameState('finished');
+        } else {
+          setCurrentQuestionIndex(nextIndex);
+          setSelectedAnswer(null);
+          setIsCorrect(null);
+          setGameState('playing');
+        }
+      };
+
+      const handlePlayAgain = () => {
+        clearSession();
+        startNewGame();
+      };
+
+      const handleBackToStart = () => {
+        clearSession();
+        setGameState('start');
+        setSelectedQuestions([]);
+        setCurrentQuestionIndex(0);
+        setCorrectAnswers(0);
+        setSelectedAnswer(null);
+        setIsCorrect(null);
+      };
+
+      const currentQuestion = selectedQuestions[currentQuestionIndex];
+      const answeredProgress = gameState === 'answered' ? (currentQuestionIndex + 1) / QUESTIONS_PER_GAME : currentQuestionIndex / QUESTIONS_PER_GAME;
+
+      const containerStyle = {
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #1a2a3a 0%, #0d1520 50%, #1a2530 100%)',
+        fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
+        color: '#e8e6e3',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+        boxSizing: 'border-box',
+        position: 'relative',
+        overflow: 'hidden'
+      };
+
+      const bgDecor = {
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 50%), radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 60%)',
+        pointerEvents: 'none'
+      };
+
+      const gridPattern = {
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
+        backgroundSize: '60px 60px',
+        pointerEvents: 'none'
+      };
+
+      return (
+        <div style={containerStyle}>
+          <div style={bgDecor} />
+          <div style={gridPattern} />
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv"
+            onChange={handleFileSelect}
+          />
+
+          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: '900px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+              <h1 style={{ fontSize: '2.5rem', fontWeight: 700, letterSpacing: '-0.02em', margin: 0, background: 'linear-gradient(135deg, #60a5fa 0%, #34d399 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                {texts.title}
+              </h1>
+              <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.5)', margin: '0.5rem 0 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                {texts.subtitle}
+              </p>
+            </div>
+
+            {gameState === 'loading' && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '4rem' }}>
+                <div style={{ width: '24px', height: '24px', border: '3px solid rgba(96, 165, 250, 0.3)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                <span style={{ color: 'rgba(255,255,255,0.6)' }}>Ladataan...</span>
+              </div>
+            )}
+
+            {gameState === 'start' && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '3rem', border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', maxWidth: '500px', width: '100%' }}>
+                <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>🌍</div>
+                <h2 style={{ fontSize: '1.75rem', fontWeight: 600, marginBottom: '1rem', color: '#fff' }}>{texts.welcomeTitle}</h2>
+                <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: '0.5rem' }}>
+                  {texts.welcomeText}
+                </p>
+                {questionsLoaded ? (
+                  <p style={{ fontSize: '0.95rem', color: 'rgba(255,255,255,0.5)', marginBottom: '2rem' }}>
+                    ({allQuestions.length} kysymystä ladattu)
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '0.95rem', color: '#f59e0b', marginBottom: '2rem' }}>
+                    ⚠️ Valitse ensin kysymystiedosto alta
+                  </p>
+                )}
+                <button
+                  onClick={questionsLoaded ? startNewGame : null}
+                  disabled={!questionsLoaded}
+                  style={{
+                    background: questionsLoaded ? 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)' : 'rgba(255,255,255,0.1)',
+                    color: questionsLoaded ? 'white' : 'rgba(255,255,255,0.4)',
+                    border: 'none',
+                    borderRadius: '16px',
+                    padding: '1.25rem 3rem',
+                    fontSize: '1.25rem',
+                    fontWeight: 600,
+                    cursor: questionsLoaded ? 'pointer' : 'not-allowed',
+                    boxShadow: questionsLoaded ? '0 4px 20px rgba(59, 130, 246, 0.3)' : 'none',
+                    letterSpacing: '0.02em'
+                  }}>
+                  {texts.startButton}
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ display: 'block', margin: '1.5rem auto 0', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', padding: '0.75rem 1.5rem', fontSize: '0.95rem', fontWeight: 500, cursor: 'pointer' }}
+                >
+                  📁 {questionsLoaded ? texts.loadDifferentFile : texts.filePickerButton}
+                </button>
+              </div>
+            )}
+
+            {gameState === 'needFile' && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '3rem', border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', maxWidth: '550px', width: '100%' }}>
+                <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📂</div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem', color: '#fff' }}>{texts.filePickerTitle}</h2>
+                <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+                  {texts.filePickerText}
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '16px', padding: '1.25rem 2.5rem', fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.3)' }}
+                >
+                  📁 {texts.filePickerButton}
+                </button>
+                <button
+                  onClick={() => setGameState('start')}
+                  style={{ display: 'block', margin: '1.5rem auto 0', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', padding: '0.75rem 2rem', fontSize: '0.95rem', fontWeight: 500, cursor: 'pointer' }}
+                >
+                  ← {texts.backButton}
+                </button>
+              </div>
+            )}
+
+            {(gameState === 'playing' || gameState === 'answered') && currentQuestion && (
+              <>
+                <div style={{ width: '100%', marginBottom: '2rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>{texts.questionLabel} {currentQuestionIndex + 1} / {QUESTIONS_PER_GAME}</span>
+                    <span style={{ fontSize: '0.9rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '1.1rem' }}>✓</span> {correctAnswers} {texts.correctLabel}
+                    </span>
+                  </div>
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${answeredProgress * 100}%`, background: 'linear-gradient(90deg, #3b82f6, #10b981)', borderRadius: '4px', transition: 'width 0.5s ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '1rem', justifyContent: 'center' }}>
+                    {Array.from({ length: QUESTIONS_PER_GAME }).map((_, i) => {
+                      let bg = 'rgba(255,255,255,0.15)';
+                      if (i < currentQuestionIndex) bg = 'rgba(255,255,255,0.3)';
+                      else if (i === currentQuestionIndex && gameState === 'answered') bg = isCorrect ? '#10b981' : '#ef4444';
+                      else if (i === currentQuestionIndex) bg = '#3b82f6';
+                      return <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: bg, transition: 'all 0.3s ease' }} />;
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '2.5rem', border: '1px solid rgba(255,255,255,0.08)', width: '100%', textAlign: 'center' }}>
+                  <h2 style={{ fontSize: '2rem', fontWeight: 600, marginBottom: '2.5rem', color: '#fff', lineHeight: 1.3 }}>{currentQuestion.question}</h2>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', marginBottom: gameState === 'answered' ? '2rem' : 0 }}>
+                    {['A', 'B'].map((option) => {
+                      const isSelected = selectedAnswer === option;
+                      const isCorrectAnswer = currentQuestion.correctAnswer === option;
+                      const showResult = gameState === 'answered';
+                      let borderColor = 'rgba(255,255,255,0.1)';
+                      let bgColor = 'rgba(255,255,255,0.03)';
+                      if (showResult) {
+                        if (isCorrectAnswer) { borderColor = '#10b981'; bgColor = 'rgba(16, 185, 129, 0.15)'; }
+                        else if (isSelected) { borderColor = '#ef4444'; bgColor = 'rgba(239, 68, 68, 0.15)'; }
+                      }
+                      return (
+                        <button key={option} onClick={() => gameState === 'playing' && handleAnswer(option)} disabled={gameState === 'answered'}
+                          style={{ background: bgColor, border: `2px solid ${borderColor}`, borderRadius: '16px', padding: '2rem 1.5rem', cursor: gameState === 'playing' ? 'pointer' : 'default', transition: 'all 0.3s ease', textAlign: 'center', position: 'relative' }}>
+                          <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: showResult && isCorrectAnswer ? '#10b981' : showResult && isSelected && !isCorrectAnswer ? '#ef4444' : '#3b82f6', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 700 }}>{option}</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#fff', marginBottom: showResult ? '1rem' : 0 }}>{option === 'A' ? currentQuestion.optionA : currentQuestion.optionB}</div>
+                          {showResult && <div style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, marginTop: '0.5rem', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>{option === 'A' ? currentQuestion.infoA : currentQuestion.infoB}</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {gameState === 'answered' && (
+                    <div style={{ marginTop: '1.5rem', animation: 'fadeIn 0.3s ease' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 2rem', borderRadius: '12px', background: isCorrect ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${isCorrect ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`, marginBottom: '1.5rem' }}>
+                        <span style={{ fontSize: '1.5rem' }}>{isCorrect ? '✅' : '❌'}</span>
+                        <span style={{ fontSize: '1.25rem', fontWeight: 600, color: isCorrect ? '#34d399' : '#f87171' }}>{isCorrect ? texts.correctText : texts.wrongText}</span>
+                      </div>
+                      <button onClick={handleNext} style={{ display: 'block', width: '100%', background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '16px', padding: '1.25rem 2rem', fontSize: '1.25rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.3)' }}>
+                        {currentQuestionIndex + 1 >= QUESTIONS_PER_GAME ? texts.showResultsButton : texts.nextButton} →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {gameState === 'finished' && (() => {
+              const { emoji, message } = getEncouragingMessage(correctAnswers, QUESTIONS_PER_GAME);
+              return (
+                <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '3rem', border: '1px solid rgba(255,255,255,0.08)', textAlign: 'center', maxWidth: '600px', width: '100%' }}>
+                  <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>{emoji}</div>
+                  <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem', color: '#fff' }}>{texts.gameOverTitle}</h2>
+                  <div style={{ fontSize: '3.5rem', fontWeight: 700, background: 'linear-gradient(135deg, #60a5fa 0%, #34d399 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: '1.5rem 0' }}>{correctAnswers} / {QUESTIONS_PER_GAME}</div>
+                  <p style={{ fontSize: '1.25rem', color: 'rgba(255,255,255,0.7)', marginBottom: '2.5rem', lineHeight: 1.5 }}>{message}</p>
+                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button onClick={handlePlayAgain} style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '16px', padding: '1.25rem 2.5rem', fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.3)' }}>{texts.playAgainButton}</button>
+                    <button onClick={handleBackToStart} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '16px', padding: '1.25rem 2.5rem', fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer' }}>{texts.backToStartButton}</button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<TriviaGame />);
+  </script>
+</body>
+</html>

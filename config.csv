@@ -1,0 +1,20 @@
+key;value
+title;Euroopan Maantiede
+subtitle;Tietovisa
+welcomeTitle;Tervetuloa tietovisaan!
+welcomeText;Testatkaa tietonne Euroopan maista, kaupungeista, joista, vuoristoista, järvistä ja meristä.
+startButton;Aloita peli
+filePickerTitle;Valitse kysymystiedosto
+filePickerText;Valitse CSV-tiedosto, jossa on tietovisan kysymykset.
+filePickerButton;Valitse CSV-tiedosto
+backButton;Takaisin
+nextButton;Seuraava kysymys
+showResultsButton;Näytä tulokset
+correctText;Oikein!
+wrongText;Väärin!
+gameOverTitle;Peli päättyi!
+playAgainButton;Pelaa uudelleen
+backToStartButton;Alkuun
+loadDifferentFile;Lataa eri kysymystiedosto
+questionLabel;Kysymys
+correctLabel;oikein
