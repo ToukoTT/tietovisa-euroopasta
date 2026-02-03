@@ -21,7 +21,7 @@ Kumpi joki virtaa Pariisissa?;Loire;Seine;B;Loire on Ranskan pisin joki (1 006 k
 Kumpi on Belgian pääkaupunki?;Bryssel;Varsova;A;Bryssel on Belgian pääkaupunki.;Varsova on Puolan pääkaupunki.
 Kumpi on Norjan pääkaupunki?;Bergen;Oslo;B;Oslo on Norjan pääkaupunki.;Bergen on Norjan neljänneksi suurin kaupunki.
 Kumpi valtio sijaitsee vuoristossa?;Andorra;Monaco;A;Andorra sijaitsee Pyreneiden vuoristossa.;Monaco sijaitsee Välimeren rannalla tasaisella alueella.
-Kumpi meri on pienempi pinta-alaltaan?;Adrianmeri;Itämeri;B;Adrianmeri on noin 138 000 km² suuri pinta-alaltaan.;Itämeri on 377 000 km² suuri pinta-alaltaan.
+Kumpi meri on suurempi pinta-alaltaan?;Adrianmeri;Itämeri;B;Adrianmeri on noin 138 000 km² suuri pinta-alaltaan.;Itämeri on 377 000 km² suuri pinta-alaltaan.
 Kumpi joki laskee Mustallemerelle?;Tonava;Volga;A;Tonava laskee Mustallemerelle Romanian kohdalla.;Volga laskee Kaspianmereen.
 Kumpi vuori on tulivuori?;Etna;Mont Blanc;A;Etna Sisiliassa on Euroopan korkein aktiivinen tulivuori (3 357 m).;Mont Blanc ei ole tulivuori vaan graniitista muodostunut huippu.
 Kumpi saari on lähempänä Afrikkaa?;Sisilia;Sardinia;A;Sisilia on vain 140 km päässä Tunisiasta.;Sardinia on noin 200 km päässä Afrikan rannikosta.
@@ -99,3 +99,4 @@ Kumpi maa on pinta-alaltaan suurempi?;Ranska;Saksa;A;Ranska on pinta-alaltaan 64
 Kummassa maassa on enemmän asukkaita?;Suomi;Ruotsi;B;Suomessa asuu noin 5,6 miljoonaa ihmistä.;Ruotsissa asuu noin 10,6 miljoonaa ihmistä.
 Kumpi maa on pinta-alaltaan suurempi?;Ranska;Puola;A;Ranska on pinta-alaltaan Euroopan kolmanneksi suurin.;Puola on pinta-alaltaan Euroopan yhdeksänneksi suurin.
 Kumpi vuori on Espanjan korkein?;Teide;Mulhacén;A;Teide Teneriffalla on 3 718 m korkea.;Mulhacén on Espanjan mantereella korkein (3 479 m).
+
